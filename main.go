@@ -6,47 +6,73 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/widget"
 )
 
 func main() {
-	// 最後に必ず入力を待つ
-	defer func() {
-		fmt.Println("\n-----------------------------------------")
-		fmt.Println("処理が終了しました。Enterキーを押すと閉じます...")
-		bufio.NewReader(os.Stdin).ReadBytes('\n')
-	}()
+	myApp := app.New()
+	myWindow := myApp.NewWindow("C# Comment Stripper")
+	myWindow.Resize(fyne.NewSize(400, 200))
 
-	// 引数チェック
-	if len(os.Args) < 2 {
-		fmt.Println("【使い方】")
-		fmt.Println("このexeファイルにC#ファイルをドラッグ＆ドロップするか、")
-		fmt.Println("パスを貼り付けてEnterを押してください。")
-		return
+	label := widget.NewLabel("C#ファイルをここにドロップするか\nボタンで選択してください")
+	label.Alignment = fyne.TextAlignCenter
+
+	// 処理関数
+	runStrip := func(path string) {
+		err := processFile(path)
+		if err != nil {
+			dialog.ShowError(err, myWindow)
+		} else {
+			dialog.ShowInformation("完了", "コメントを削除したファイルを保存しました:\n"+path+"_cleaned.cs", myWindow)
+		}
 	}
 
-	// 渡されたパスを整理
-	inputPath := strings.Trim(os.Args[1], "\"")
-	fmt.Printf("読み込み中: %s\n", inputPath)
+	// ボタン
+	btn := widget.NewButton("ファイルを選択", func() {
+		dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
+			if err == nil && reader != nil {
+				runStrip(reader.URI().Path())
+			}
+		}, myWindow)
+	})
 
+	// ドラッグ＆ドロップ対応
+	myWindow.SetOnDropped(func(pos fyne.Position, uris []fyne.URI) {
+		for _, uri := range uris {
+			runStrip(uri.Path())
+		}
+	})
+
+	myWindow.SetContent(container.NewVBox(
+		label,
+		btn,
+	))
+
+	myWindow.ShowAndRun()
+}
+
+func processFile(inputPath string) error {
+	inputPath = strings.Trim(inputPath, "\"")
 	file, err := os.Open(inputPath)
 	if err != nil {
-		fmt.Printf("エラー: ファイルが開けませんでした: %v\n", err)
-		return
+		return err
 	}
 	defer file.Close()
 
-	// 出力ファイル名を作成
 	outputPath := inputPath + "_cleaned.cs"
 	outFile, err := os.Create(outputPath)
 	if err != nil {
-		fmt.Printf("エラー: 出力ファイルが作成できませんでした: %v\n", err)
-		return
+		return err
 	}
 	defer outFile.Close()
 
 	stripComments(file, outFile)
-
-	fmt.Printf("成功！保存先:\n%s\n", outputPath)
+	return nil
 }
 
 func stripComments(r io.Reader, w io.Writer) {
@@ -57,24 +83,19 @@ func stripComments(r io.Reader, w io.Writer) {
 	inString := false
 	for {
 		r, _, err := reader.ReadRune()
-		if err == io.EOF {
-			break
-		}
-
+		if err == io.EOF { break }
 		if r == '"' {
 			inString = !inString
 			writer.WriteRune(r)
 			continue
 		}
-
 		if !inString && r == '/' {
 			next, _, err := reader.ReadRune()
 			if err != nil {
 				writer.WriteRune(r)
 				break
 			}
-
-			if next == '/' { // 1行コメント
+			if next == '/' {
 				for {
 					n, _, err := reader.ReadRune()
 					if err == io.EOF || n == '\n' {
@@ -83,17 +104,13 @@ func stripComments(r io.Reader, w io.Writer) {
 					}
 				}
 				continue
-			} else if next == '*' { // 複数行コメント
+			} else if next == '*' {
 				for {
 					n, _, err := reader.ReadRune()
-					if err == io.EOF {
-						break
-					}
+					if err == io.EOF { break }
 					if n == '*' {
 						nn, _, _ := reader.ReadRune()
-						if nn == '/' {
-							break
-						}
+						if nn == '/' { break }
 						_ = reader.UnreadRune()
 					}
 				}
