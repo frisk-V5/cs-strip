@@ -1,6 +1,11 @@
-name: Go Build
+name: Build and Release exe
 
-on: [push, pull_request]
+on:
+  push:
+    tags:
+      - "v*" # v1.0 などのタグを打つとリリース作成
+    branches:
+      - main # mainにプッシュするたびに最新版をビルド（テスト用）
 
 jobs:
   build:
@@ -13,11 +18,23 @@ jobs:
         with:
           go-version: '1.22'
 
-      - name: Build
+      - name: Build Windows exe
         run: |
-          # フォルダ名でモジュール初期化
           go mod init cs-strip || true
-          go build -v -o cs-strip main.go
+          # Windows向けにクロスコンパイル
+          GOOS=windows GOARCH=amd64 go build -o cs-strip.exe main.go
 
-      - name: Check Binary
-        run: ./cs-strip --help || true
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cs-strip-windows
+          path: cs-strip.exe
+
+      # リリース作成（タグを打った時のみ実行）
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: cs-strip.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
