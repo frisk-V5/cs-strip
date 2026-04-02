@@ -5,24 +5,35 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
 func main() {
-	// 引数チェック（ファイルパスが貼り付けられてくる想定）
 	if len(os.Args) < 2 {
-		fmt.Println("使用法: go run main.go <ファイルパス>")
+		fmt.Println("使い方: cs-strip.exe <ファイルパス>")
 		return
 	}
-	filePath := os.Args[1]
+	inputPath := os.Args[1]
+	// パスの前後にある引用符（"）を削除（コピペ対策）
+	inputPath = strings.Trim(inputPath, "\"")
 
-	file, err := os.Open(filePath)
+	file, err := os.Open(inputPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "エラー: %v\n", err)
-		os.Exit(1)
+		fmt.Printf("ファイルが開けません: %v\n", err)
+		return
 	}
 	defer file.Close()
 
-	process(file, os.Stdout)
+	outputPath := inputPath + "_cleaned.cs"
+	outFile, err := os.Create(outputPath)
+	if err != nil {
+		fmt.Printf("出力ファイルが作成できません: %v\n", err)
+		return
+	}
+	defer outFile.Close()
+
+	process(file, outFile)
+	fmt.Printf("完了！保存先: %s\n", outputPath)
 }
 
 func process(r io.Reader, w io.Writer) {
@@ -33,9 +44,7 @@ func process(r io.Reader, w io.Writer) {
 	inString := false
 	for {
 		r, _, err := reader.ReadRune()
-		if err == io.EOF {
-			break
-		}
+		if err == io.EOF { break }
 
 		if r == '"' {
 			inString = !inString
@@ -59,9 +68,7 @@ func process(r io.Reader, w io.Writer) {
 					n, _, _ := reader.ReadRune()
 					if n == '*' {
 						nn, _, _ := reader.ReadRune()
-						if nn == '/' {
-							break
-						}
+						if nn == '/' { break }
 					}
 					if n == 0 { break }
 				}
