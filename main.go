@@ -2,13 +2,32 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os"
 )
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
-	writer := bufio.NewWriter(os.Stdout)
+	// 引数チェック（ファイルパスが貼り付けられてくる想定）
+	if len(os.Args) < 2 {
+		fmt.Println("使用法: go run main.go <ファイルパス>")
+		return
+	}
+	filePath := os.Args[1]
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "エラー: %v\n", err)
+		os.Exit(1)
+	}
+	defer file.Close()
+
+	process(file, os.Stdout)
+}
+
+func process(r io.Reader, w io.Writer) {
+	reader := bufio.NewReader(r)
+	writer := bufio.NewWriter(w)
 	defer writer.Flush()
 
 	inString := false
@@ -26,7 +45,7 @@ func main() {
 
 		if !inString && r == '/' {
 			next, _, _ := reader.ReadRune()
-			if next == '/' { // 1行コメント //
+			if next == '/' { // 1行コメント
 				for {
 					n, _, _ := reader.ReadRune()
 					if n == '\n' || n == 0 {
@@ -35,7 +54,7 @@ func main() {
 					}
 				}
 				continue
-			} else if next == '*' { // 複数行コメント /* */
+			} else if next == '*' { // 複数行コメント
 				for {
 					n, _, _ := reader.ReadRune()
 					if n == '*' {
@@ -49,7 +68,7 @@ func main() {
 				continue
 			} else {
 				writer.WriteRune(r)
-				reader.UnreadRune()
+				_ = reader.UnreadRune()
 				continue
 			}
 		}
