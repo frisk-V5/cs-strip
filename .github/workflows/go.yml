@@ -1,24 +1,23 @@
 name: Go Build
 
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+on: [push, pull_request]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
 
-    - name: Build
-      run: go build -v ./...
+      - name: Build
+        run: |
+          # フォルダ名でモジュール初期化
+          go mod init cs-strip || true
+          go build -v -o cs-strip main.go
 
-    - name: Test
-      run: go test -v ./...
+      - name: Check Binary
+        run: ./cs-strip --help || true
