@@ -1,25 +1,45 @@
 name: Build GUI exe
 
-on: [push]
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: # 手動実行ボタンも追加
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: true # 依存関係のキャッシュを有効化
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev xorg-dev
+          # GUIビルドに必要なライブラリと、Windows向けCコンパイラをインストール
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev gcc-mingw-w64
 
       - name: Build Windows GUI
+        env:
+          CGO_ENABLED: 1
+          GOOS: windows
+          GOARCH: amd64
+          CC: x86_64-w64-mingw32-gcc
         run: |
+          # モジュールの初期化と依存関係の解決
           go mod init cs-strip || true
           go mod tidy
-          # -ldflags="-H windowsgui" でコンソールを出さないようにする
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -ldflags="-H windowsgui" -o cs-strip.exe main.go
+          # -ldflags="-H windowsgui" で実行時に黒い画面(コンソール)が出ないようにする
+          go build -ldflags="-H windowsgui" -o cs-strip.exe main.go
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cs-strip-windows-gui
+          path: cs-strip.exe
