@@ -1,40 +1,25 @@
-name: Build and Release exe
+name: Build GUI exe
 
-on:
-  push:
-    tags:
-      - "v*" # v1.0 などのタグを打つとリリース作成
-    branches:
-      - main # mainにプッシュするたびに最新版をビルド（テスト用）
+on: [push]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
 
-      - name: Build Windows exe
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev
+
+      - name: Build Windows GUI
         run: |
           go mod init cs-strip || true
-          # Windows向けにクロスコンパイル
-          GOOS=windows GOARCH=amd64 go build -o cs-strip.exe main.go
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cs-strip-windows
-          path: cs-strip.exe
-
-      # リリース作成（タグを打った時のみ実行）
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: cs-strip.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          go mod tidy
+          # -ldflags="-H windowsgui" でコンソールを出さないようにする
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -ldflags="-H windowsgui" -o cs-strip.exe main.go
